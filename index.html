@@ -111,29 +111,7 @@
                 (<span id="rowCountDisplay"></span> รายการ)
             </div>
 
-            <!-- Column Detection Debug Panel -->
-            <div id="colDebugPanel" class="hidden mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                <div class="flex items-center justify-between mb-3">
-                    <p class="text-sm font-semibold text-slate-700 flex items-center">
-                        <svg class="w-4 h-4 mr-1.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                        คอลัมน์ที่ตรวจพบ (Column Detection)
-                    </p>
-                    <span class="text-xs text-slate-400">ถ้ามี ❌ กรุณาเลือกคอลัมน์ที่ถูกต้องด้านล่าง</span>
-                </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3" id="colDetectGrid"></div>
 
-                <!-- Manual Column Override -->
-                <div id="colOverrideSection" class="hidden mt-3 pt-3 border-t border-slate-200">
-                    <p class="text-xs font-medium text-slate-600 mb-2">⚙️ เลือกคอลัมน์ด้วยตนเอง (ถ้า detect ผิดพลาด)</p>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2" id="colOverrideGrid"></div>
-                    <button onclick="processData()" class="mt-3 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">
-                        ประมวลผลใหม่
-                    </button>
-                </div>
-                <button onclick="toggleColOverride()" class="text-xs text-blue-500 hover:text-blue-700 underline mt-2">
-                    เลือกคอลัมน์เอง / แก้ไขคอลัมน์
-                </button>
-            </div>
         </div>
 
         <!-- Empty State -->
@@ -243,11 +221,18 @@
 
             <!-- Top Selling Items -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-6">
-                <div class="px-6 py-4 border-b border-slate-200 bg-slate-50">
+                <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <h3 class="text-lg font-bold text-slate-800 flex items-center">
                         <svg class="w-5 h-5 mr-2 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
-                        10 อันดับสินค้าขายดี (Top Selling Items)
+                        10 อันดับสินค้าขายดี
                     </h3>
+                    <div class="flex items-center gap-2 text-sm">
+                        <label class="text-slate-500 whitespace-nowrap font-medium">ช่องรายการ:</label>
+                        <select id="itemColSelect" onchange="onItemColChange()"
+                                class="text-sm rounded-lg border border-slate-300 px-3 py-1.5 bg-white text-slate-700 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 min-w-[180px]">
+                            <option value="">(เลือกคอลัมน์รายการ)</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
@@ -255,7 +240,7 @@
                             <tr class="bg-white text-slate-500 text-sm border-b border-slate-200">
                                 <th class="py-3 px-6 font-medium text-center w-16">อันดับ</th>
                                 <th class="py-3 px-6 font-medium">รายการสินค้า</th>
-                                <th class="py-3 px-6 font-medium text-right">จำนวนชิ้นที่ขาย</th>
+                                <th class="py-3 px-6 font-medium text-right">จำนวนครั้ง</th>
                                 <th class="py-3 px-6 font-medium text-right">ยอดขายรวม (บาท)</th>
                             </tr>
                         </thead>
@@ -407,110 +392,92 @@
         }
 
         // ============================================================
-        // Column Override State
         // ============================================================
-        let allColumnKeys = [];      // ชื่อคอลัมน์ทั้งหมดจากไฟล์
-        let manualCols   = {};       // override จากผู้ใช้
-
-        function toggleColOverride() {
-            document.getElementById('colOverrideSection').classList.toggle('hidden');
-        }
-
-        // ============================================================
-        // BUG FIX #5: Detect column keys ONCE — เพิ่ม pattern ให้ครอบคลุมมากขึ้น
+        // Detect column keys ONCE from first row
         // ============================================================
         function detectColumnKeys(firstRow) {
             const keys = Object.keys(firstRow);
-            allColumnKeys = keys;
 
-            // ฟังก์ชัน fuzzy find: รองรับชื่อคอลัมน์หลากหลาย
-            const find = (...pats) => keys.find(k =>
-                pats.some(p => {
-                    const kl = k.toLowerCase().trim();
-                    const pl = p.toLowerCase().trim();
-                    return kl === pl || kl.includes(pl) || pl.includes(kl);
-                })
-            );
-
-            const detected = {
-                dateKey:   find('วัน', 'date', 'วันที่', 'transaction date', 'txn date', 'sale date', 'visit date', 'created'),
-                hnKey:     find('HN', 'hn', 'รหัสลูกค้า', 'customer', 'customer id', 'cust id', 'member', 'member id', 'id'),
-                nameKey:   find('ชื่อ', 'name', 'customer name', 'full name', 'ชื่อ-สกุล', 'ชื่อลูกค้า'),
-                phoneKey:  find('เบอร์', 'phone', 'tel', 'mobile', 'telephone', 'เบอร์โทร', 'เบอร์โทรศัพท์'),
-                // 🔑 KEY FIX: เพิ่ม pattern สำหรับ amount ให้ครอบคลุมมากขึ้น
-                amountKey: find(
-                    'ยอด', 'ยอดชำระ', 'ยอดรวม', 'ยอดเงิน', 'ยอดสุทธิ', 'ยอดขาย',
-                    'amount', 'total', 'price', 'subtotal', 'net', 'grand total',
-                    'ชำระ', 'จ่าย', 'เงิน', 'บาท', 'revenue', 'sales', 'value',
-                    'รวม', 'สุทธิ', 'ราคา'
-                ),
-                itemKey:   find('รายการ', 'item', 'product', 'service', 'สินค้า', 'บริการ', 'treatment', 'description', 'รายการสินค้า'),
-                qtyKey:    find('จำนวน', 'qty', 'quantity', 'unit', 'จำนวนชิ้น', 'ชิ้น', 'count', 'pcs'),
-                groupKey:  find('กลุ่ม', 'group', 'tier', 'level', 'membership', 'ระดับ', 'ประเภท')
+            // หา match: exact ก่อน → แล้วค่อย partial (column contains pattern)
+            // ไม่ใช้ pl.includes(kl) เพราะกว้างเกินไป
+            const find = (...pats) => {
+                // 1. exact match
+                let found = keys.find(k => pats.some(p => k.trim().toLowerCase() === p.trim().toLowerCase()));
+                if (found) return found;
+                // 2. column name contains pattern
+                found = keys.find(k => pats.some(p => k.trim().toLowerCase().includes(p.trim().toLowerCase())));
+                return found || null;
             };
 
-            // Merge กับ manual override ถ้ามี
-            Object.keys(manualCols).forEach(k => {
-                if (manualCols[k]) detected[k] = manualCols[k];
-            });
-
-            return detected;
-        }
-
-        // แสดงผล Column Detection ใน Debug Panel
-        function renderColDebugPanel(cols, firstRow) {
-            const panel = document.getElementById('colDebugPanel');
-            panel.classList.remove('hidden');
-
-            const labels = {
-                dateKey:   'วันที่ (Date)',
-                hnKey:     'รหัสลูกค้า (HN)',
-                nameKey:   'ชื่อลูกค้า',
-                phoneKey:  'เบอร์โทร',
-                amountKey: '💰 ยอดเงิน (Amount)',
-                itemKey:   'รายการสินค้า',
-                qtyKey:    'จำนวน (Qty)',
-                groupKey:  'กลุ่มลูกค้า'
+            return {
+                dateKey:   find('วันที่', 'วัน', 'date', 'transaction date', 'sale date', 'visit date', 'created at', 'created'),
+                hnKey:     find('HN', 'รหัสลูกค้า', 'customer id', 'cust id', 'member id', 'member no', 'customer no', 'hn', 'id'),
+                nameKey:   find('ชื่อ-สกุล', 'ชื่อลูกค้า', 'ชื่อ', 'customer name', 'full name', 'name'),
+                phoneKey:  find('เบอร์โทรศัพท์', 'เบอร์โทร', 'เบอร์', 'telephone', 'mobile', 'phone', 'tel'),
+                amountKey: find('ยอดชำระ', 'ยอดรวม', 'ยอดเงิน', 'ยอดสุทธิ', 'ยอดขาย', 'ยอด',
+                                'grand total', 'net amount', 'subtotal', 'amount', 'total', 'revenue', 'sales',
+                                'ชำระ', 'สุทธิ', 'ราคารวม', 'ราคา', 'จ่าย', 'บาท'),
+                // ✅ itemKey: เน้น pattern ชื่อรายการ/รายการสินค้า ก่อน
+                itemKey:   find('ชื่อรายการ', 'รายการสินค้า', 'รายการบริการ', 'รายการ',
+                                'item name', 'product name', 'service name', 'treatment name',
+                                'item', 'product', 'service', 'treatment', 'description', 'สินค้า', 'บริการ'),
+                qtyKey:    find('จำนวนชิ้น', 'จำนวน', 'quantity', 'qty', 'unit', 'count', 'pcs', 'ชิ้น'),
+                groupKey:  find('กลุ่มลูกค้า', 'กลุ่ม', 'membership', 'tier', 'level', 'group', 'ระดับ', 'ประเภท')
             };
-
-            // Detection grid
-            const grid = document.getElementById('colDetectGrid');
-            grid.innerHTML = '';
-            Object.entries(labels).forEach(([key, label]) => {
-                const found = cols[key];
-                const isAmount = key === 'amountKey';
-                const div = document.createElement('div');
-                div.className = `p-2 rounded text-xs border ${found ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`;
-                div.innerHTML = `
-                    <div class="font-medium ${isAmount ? 'text-indigo-700' : 'text-slate-600'} mb-0.5">${label}</div>
-                    <div class="${found ? 'text-green-700' : 'text-red-600'} font-mono">
-                        ${found ? `✅ "${found}"` : '❌ ไม่พบ'}
-                    </div>
-                `;
-                grid.appendChild(div);
-            });
-
-            // Override dropdowns
-            const overrideGrid = document.getElementById('colOverrideGrid');
-            overrideGrid.innerHTML = '';
-            Object.entries(labels).forEach(([key, label]) => {
-                const div = document.createElement('div');
-                const isAmount = key === 'amountKey';
-                div.innerHTML = `
-                    <label class="block text-xs ${isAmount ? 'font-bold text-indigo-700' : 'text-slate-600'} mb-1">${label}</label>
-                    <select onchange="manualCols['${key}']=this.value"
-                            class="block w-full text-xs rounded border border-slate-300 px-2 py-1 ${isAmount ? 'border-indigo-400 bg-indigo-50' : ''}">
-                        <option value="">(auto detect)</option>
-                        ${allColumnKeys.map(k => `<option value="${k}" ${cols[key]===k?'selected':''}>${k}</option>`).join('')}
-                    </select>
-                `;
-                overrideGrid.appendChild(div);
-            });
         }
 
         // ============================================================
         // Main processData()
         // ============================================================
+        // คอลัมน์รายการที่ผู้ใช้เลือกด้วยตนเอง (override)
+        let selectedItemCol = null;
+
+        function onItemColChange() {
+            selectedItemCol = document.getElementById('itemColSelect').value || null;
+            rebuildTopItems();
+        }
+
+        // คำนวณ Top Items ใหม่จากข้อมูล rawData + itemStats ล่าสุด โดยใช้ selectedItemCol
+        function rebuildTopItems() {
+            if (!rawData || rawData.length === 0) return;
+            const cols = detectColumnKeys(rawData[0]);
+            const itemColKey = selectedItemCol || cols.itemKey;
+            if (!itemColKey) {
+                showAlert('กรุณาเลือกคอลัมน์รายการก่อน', 'error');
+                return;
+            }
+
+            const startDateInput = document.getElementById('startDate').value;
+            const endDateInput   = document.getElementById('endDate').value;
+            let startFilterDate  = startDateInput ? toMidnight(new Date(startDateInput)) : null;
+            let endFilterDate    = endDateInput   ? new Date(endDateInput) : null;
+            if (endFilterDate) { endFilterDate = toMidnight(endFilterDate); endFilterDate.setHours(23,59,59,999); }
+
+            const itemStats = {};
+            rawData.forEach(row => {
+                const transDate = parseDateCustom(row[cols.dateKey]);
+                if (!transDate) return;
+                if (startFilterDate && transDate < startFilterDate) return;
+                if (endFilterDate   && transDate > endFilterDate)   return;
+
+                const amount   = parseFloat(String(row[cols.amountKey] || '0').replace(/,/g, '')) || 0;
+                const itemName = String(row[itemColKey] || '').trim();
+                const qty      = parseFloat(String(row[cols.qtyKey] || '0').replace(/,/g, '')) || (amount > 0 ? 1 : 0);
+
+                if (!itemName) return;
+                if (!itemStats[itemName]) itemStats[itemName] = { name: itemName, count: 0, qty: 0, revenue: 0 };
+                itemStats[itemName].count++;
+                itemStats[itemName].qty     += qty;
+                itemStats[itemName].revenue += amount;
+            });
+
+            currentTopItems = Object.values(itemStats)
+                .sort((a, b) => b.revenue - a.revenue)
+                .slice(0, 10);
+
+            renderTopItems();
+        }
+
         function processData() {
             if (!rawData || rawData.length === 0) {
                 showAlert('กรุณาอัปโหลดไฟล์ข้อมูลก่อน', 'error');
@@ -528,16 +495,24 @@
             let itemStats  = {};
             currentLists   = { active:[], sleep:[], lost:[], vipSpenders:[], vvip:[], vipGroup:[], premium:[], flora:[] };
 
-            // BUG FIX #5: detect once
             const cols = detectColumnKeys(rawData[0]);
 
-            // แสดง debug panel
-            renderColDebugPanel(cols, rawData[0]);
+            // populate dropdown ทุกชื่อคอลัมน์ในไฟล์
+            const select = document.getElementById('itemColSelect');
+            const allKeys = Object.keys(rawData[0]);
 
-            // แจ้งเตือนถ้า amountKey ไม่พบ
+            // ถ้าผู้ใช้ไม่เคยเลือก manual ให้ใช้ค่า auto-detect
+            if (!selectedItemCol) selectedItemCol = cols.itemKey || null;
+
+            select.innerHTML = '<option value="">(เลือกคอลัมน์รายการ)</option>' +
+                allKeys.map(k => `<option value="${k}" ${k === selectedItemCol ? 'selected' : ''}>${k}</option>`).join('');
+
             if (!cols.amountKey) {
-                showAlert('⚠️ ไม่พบคอลัมน์ยอดเงิน กรุณาเลือกคอลัมน์ด้วยตนเองด้านบน', 'error');
+                showAlert('⚠️ ไม่พบคอลัมน์ยอดเงินในไฟล์ ยอดขายจะแสดงเป็น 0', 'error');
             }
+
+            // ใช้คอลัมน์รายการที่ผู้ใช้เลือก หรือ detect อัตโนมัติ
+            const itemColKey = selectedItemCol || cols.itemKey || '';
 
             rawData.forEach(row => {
                 const transDate = parseDateCustom(row[cols.dateKey]);
@@ -551,7 +526,7 @@
                 if (!hn) return;
 
                 const amount   = parseFloat(String(row[cols.amountKey] || '0').replace(/,/g, '')) || 0;
-                const itemName = String(row[cols.itemKey] || 'ไม่ระบุ').trim();
+                const itemName = itemColKey ? String(row[itemColKey] || '').trim() : '';
                 const qty      = parseFloat(String(row[cols.qtyKey]   || '0').replace(/,/g, '')) || (amount > 0 ? 1 : 0);
                 const group    = String(row[cols.groupKey] || '').trim();
 
@@ -564,7 +539,7 @@
                 }
 
                 customers[hn].totalSpent += amount;
-                if (itemName && itemName !== 'ไม่ระบุ') customers[hn].itemsSet.add(itemName);
+                if (itemName) customers[hn].itemsSet.add(itemName);
 
                 if (transDate >= customers[hn].lastVisit) {
                     customers[hn].lastVisit = transDate;
@@ -573,10 +548,9 @@
                     if (row[cols.phoneKey]) customers[hn].phone = String(row[cols.phoneKey]);
                 }
 
-                if (itemName && itemName !== 'ไม่ระบุ'
-                    && !itemName.includes('ตัดคอร์ส')
-                    && !itemName.toLowerCase().includes('free')) {
-                    if (!itemStats[itemName]) itemStats[itemName] = { name: itemName, qty: 0, revenue: 0 };
+                if (itemName) {
+                    if (!itemStats[itemName]) itemStats[itemName] = { name: itemName, count: 0, qty: 0, revenue: 0 };
+                    itemStats[itemName].count++;
                     itemStats[itemName].qty     += qty;
                     itemStats[itemName].revenue += amount;
                 }
@@ -587,10 +561,11 @@
                 return;
             }
 
-            // Reference date = endDate หรือ วันล่าสุดในข้อมูล
             const refMidnight = endFilterDate ? toMidnight(endFilterDate) : toMidnight(maxDatasetDate);
 
-            currentTopItems = Object.values(itemStats).sort((a, b) => b.qty - a.qty).slice(0, 10);
+            currentTopItems = Object.values(itemStats)
+                .sort((a, b) => b.revenue - a.revenue)
+                .slice(0, 10);
             currentStats    = { total:0, active:0, sleep:0, lost:0, vipSpenders:0, vvip:0, vipGroup:0, premium:0, flora:0 };
 
             const ONE_DAY = 86400000;
@@ -643,10 +618,14 @@
             set('statPremium',     currentStats.premium);
             set('statFlora',       currentStats.flora);
 
+            renderTopItems();
+        }
+
+        function renderTopItems() {
             const tbody = document.getElementById('topItemsTbody');
             tbody.innerHTML = '';
             if (currentTopItems.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-400">ไม่พบรายการสินค้า</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-400">ไม่พบรายการสินค้า — กรุณาเลือกคอลัมน์รายการที่ถูกต้อง</td></tr>`;
                 return;
             }
             const rankBadges = [
@@ -660,8 +639,8 @@
                 tr.innerHTML = `
                     <td class="py-3 px-6 text-center">${rankBadges[i] || `<span class="text-slate-500">${i+1}</span>`}</td>
                     <td class="py-3 px-6 font-medium text-slate-800">${escapeHtml(item.name)}</td>
-                    <td class="py-3 px-6 text-right text-blue-600 font-medium">${item.qty.toLocaleString()}</td>
-                    <td class="py-3 px-6 text-right text-slate-600">฿${item.revenue.toLocaleString()}</td>
+                    <td class="py-3 px-6 text-right text-blue-600 font-medium">${item.count.toLocaleString()} ครั้ง</td>
+                    <td class="py-3 px-6 text-right text-emerald-600 font-semibold">฿${item.revenue.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -718,7 +697,11 @@
             }
             let topText = '';
             if (currentTopItems.length > 0) {
-                topText = '\n📌 5 อันดับสินค้าขายดี:\n' + currentTopItems.slice(0,5).map((it,i)=>`${i+1}. ${it.name} (${it.qty.toLocaleString()} ชิ้น)`).join('\n') + '\n';
+                topText = '\n🏆 10 อันดับสินค้าขายดี:\n';
+                topText += currentTopItems.map((it, i) =>
+                    `${i+1}. ${it.name}\n   จำนวน: ${it.count.toLocaleString()} ครั้ง | ยอดชำระ: ฿${it.revenue.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`
+                ).join('\n');
+                topText += '\n';
             }
             currentSummaryText = `📊 สรุปข้อมูลลูกค้า (${periodText})
 -------------------------------------------
@@ -784,8 +767,8 @@
                 ['กลุ่ม Flora Card', currentStats.flora, ''],
                 [''],
                 ['10 อันดับสินค้าขายดี', '', '', ''],
-                ['อันดับ', 'ชื่อสินค้า', 'จำนวนชิ้น', 'ยอดขายรวม (บาท)'],
-                ...currentTopItems.map((it, i) => [i+1, it.name, it.qty, it.revenue])
+                ['อันดับ', 'ชื่อสินค้า', 'จำนวนครั้ง', 'ยอดขายรวม (บาท)'],
+                ...currentTopItems.map((it, i) => [i+1, it.name, it.count, it.revenue])
             ];
 
             const ws = XLSX.utils.aoa_to_sheet(wsData);
